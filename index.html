@@ -120,8 +120,9 @@
 <body>
   <main class="container">
     <h1>Card Game Score Tracker</h1>
+    <p id="permissionBanner" class="muted" style="margin-top: -10px; margin-bottom: 16px;"></p>
 
-    <section class="card">
+    <section id="createSection" class="card">
       <h2>Create Players</h2>
       <div class="row">
         <input id="playerName" type="text" placeholder="Player name" />
@@ -142,14 +143,59 @@
   </main>
 
   <script>
-    const players = [];
+    const STORAGE_KEY = "card-game-score.players.v1";
+    const DEFAULT_RESET_SCORE = 2;
 
+    function isMasterMode() {
+      const params = new URLSearchParams(window.location.search);
+      return params.get("master") === "true";
+    }
+
+    const canEdit = isMasterMode();
+    const players = loadPlayers();
+
+    const permissionBanner = document.getElementById("permissionBanner");
+    const createSection = document.getElementById("createSection");
     const playerNameInput = document.getElementById("playerName");
     const initialScoreInput = document.getElementById("initialScore");
     const addPlayerBtn = document.getElementById("addPlayerBtn");
     const playersList = document.getElementById("playersList");
     const emptyState = document.getElementById("emptyState");
     const resetBtn = document.getElementById("resetBtn");
+
+    function loadPlayers() {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (!raw) return [];
+        const parsed = JSON.parse(raw);
+        if (!Array.isArray(parsed)) return [];
+        return parsed
+          .filter((p) => p && typeof p.name === "string" && typeof p.score === "number")
+          .map((p) => ({ name: p.name, score: p.score }));
+      } catch {
+        return [];
+      }
+    }
+
+    function savePlayers() {
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(players));
+      } catch {
+        // ignore storage errors (private mode, quota, etc.)
+      }
+    }
+
+    function applyPermissionsToUI() {
+      if (canEdit) {
+        permissionBanner.textContent = "Edit mode enabled (master=true).";
+        createSection.style.display = "";
+        resetBtn.style.display = "";
+      } else {
+        permissionBanner.textContent = "View-only mode (add ?master=true to edit).";
+        createSection.style.display = "none";
+        resetBtn.style.display = "none";
+      }
+    }
 
     function renderPlayers() {
       playersList.innerHTML = "";
@@ -164,6 +210,7 @@
       players.forEach((player, index) => {
         const row = document.createElement("div");
         row.className = "player-row";
+        row.style.gridTemplateColumns = canEdit ? "1fr auto auto auto" : "1fr auto";
 
         const name = document.createElement("span");
         name.className = "name";
@@ -173,28 +220,36 @@
         score.className = "score";
         score.textContent = player.score;
 
-        const increaseBtn = document.createElement("button");
-        increaseBtn.className = "btn-score";
-        increaseBtn.textContent = "+";
-        increaseBtn.addEventListener("click", () => {
-          players[index].score += 1;
-          renderPlayers();
-        });
+        row.append(name, score);
 
-        const decreaseBtn = document.createElement("button");
-        decreaseBtn.className = "btn-score";
-        decreaseBtn.textContent = "-";
-        decreaseBtn.addEventListener("click", () => {
-          players[index].score -= 1;
-          renderPlayers();
-        });
+        if (canEdit) {
+          const increaseBtn = document.createElement("button");
+          increaseBtn.className = "btn-score";
+          increaseBtn.textContent = "+";
+          increaseBtn.addEventListener("click", () => {
+            players[index].score += 1;
+            savePlayers();
+            renderPlayers();
+          });
 
-        row.append(name, score, increaseBtn, decreaseBtn);
+          const decreaseBtn = document.createElement("button");
+          decreaseBtn.className = "btn-score";
+          decreaseBtn.textContent = "-";
+          decreaseBtn.addEventListener("click", () => {
+            players[index].score -= 1;
+            savePlayers();
+            renderPlayers();
+          });
+
+          row.append(increaseBtn, decreaseBtn);
+        }
+
         playersList.appendChild(row);
       });
     }
 
     function addPlayer() {
+      if (!canEdit) return;
       const name = playerNameInput.value.trim();
       const initialScore = Number(initialScoreInput.value);
 
@@ -209,26 +264,33 @@
       }
 
       players.push({ name, score: initialScore });
+      savePlayers();
       playerNameInput.value = "";
       playerNameInput.focus();
       renderPlayers();
     }
 
-    addPlayerBtn.addEventListener("click", addPlayer);
-    playerNameInput.addEventListener("keydown", (event) => {
-      if (event.key === "Enter") addPlayer();
-    });
-
-    initialScoreInput.addEventListener("keydown", (event) => {
-      if (event.key === "Enter") addPlayer();
-    });
-
-    resetBtn.addEventListener("click", () => {
-      players.forEach((player) => {
-        player.score = 2;
+    if (canEdit) {
+      addPlayerBtn.addEventListener("click", addPlayer);
+      playerNameInput.addEventListener("keydown", (event) => {
+        if (event.key === "Enter") addPlayer();
       });
-      renderPlayers();
-    });
+
+      initialScoreInput.addEventListener("keydown", (event) => {
+        if (event.key === "Enter") addPlayer();
+      });
+
+      resetBtn.addEventListener("click", () => {
+        players.forEach((player) => {
+          player.score = DEFAULT_RESET_SCORE;
+        });
+        savePlayers();
+        renderPlayers();
+      });
+    }
+
+    applyPermissionsToUI();
+    renderPlayers();
   </script>
 </body>
 </html>
