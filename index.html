@@ -125,7 +125,7 @@
       <h2>Create Players</h2>
       <div class="row">
         <input id="playerName" type="text" placeholder="Player name" />
-        <input id="initialScore" type="number" value="0" />
+        <input id="initialScore" type="number" value="2" />
         <button id="addPlayerBtn" class="btn-primary">Add Player</button>
       </div>
       <p class="muted">Add player names and set their initial score.</p>
@@ -136,7 +136,7 @@
       <div id="playersList" class="players"></div>
       <p id="emptyState" class="muted">No players yet. Create one above.</p>
       <div class="row" style="margin-top: 12px;">
-        <button id="resetBtn" class="btn-secondary">Reset All Scores to 0</button>
+        <button id="resetBtn" class="btn-secondary">Reset All Scores to 2</button>
       </div>
     </section>
   </main>
@@ -225,7 +225,7 @@
 
     resetBtn.addEventListener("click", () => {
       players.forEach((player) => {
-        player.score = 0;
+        player.score = 2;
       });
       renderPlayers();
     });
