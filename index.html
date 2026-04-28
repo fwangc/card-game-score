@@ -143,7 +143,6 @@
   </main>
 
   <script>
-    const STORAGE_KEY = "card-game-score.players.v1";
     const DEFAULT_RESET_SCORE = 2;
 
     function isMasterMode() {
@@ -151,8 +150,17 @@
       return params.get("master") === "true";
     }
 
+    function getRoomId() {
+      const params = new URLSearchParams(window.location.search);
+      const raw = (params.get("roomId") || "default").trim();
+      if (raw.length > 50) return "default";
+      if (!/^[a-zA-Z0-9_-]+$/.test(raw)) return "default";
+      return raw;
+    }
+
     const canEdit = isMasterMode();
-    const players = loadPlayers();
+    const roomId = getRoomId();
+    const players = [];
 
     const permissionBanner = document.getElementById("permissionBanner");
     const createSection = document.getElementById("createSection");
@@ -163,35 +171,31 @@
     const emptyState = document.getElementById("emptyState");
     const resetBtn = document.getElementById("resetBtn");
 
-    function loadPlayers() {
-      try {
-        const raw = localStorage.getItem(STORAGE_KEY);
-        if (!raw) return [];
-        const parsed = JSON.parse(raw);
-        if (!Array.isArray(parsed)) return [];
-        return parsed
-          .filter((p) => p && typeof p.name === "string" && typeof p.score === "number")
-          .map((p) => ({ name: p.name, score: p.score }));
-      } catch {
-        return [];
-      }
+    async function loadFromServer() {
+      const response = await fetch(`/api/rooms/${encodeURIComponent(roomId)}`);
+      if (!response.ok) throw new Error("Failed to load room");
+      const data = await response.json();
+      players.splice(0, players.length, ...(Array.isArray(data.players) ? data.players : []));
     }
 
-    function savePlayers() {
-      try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(players));
-      } catch {
-        // ignore storage errors (private mode, quota, etc.)
-      }
+    async function saveToServer() {
+      if (!canEdit) return;
+      const url = `/api/rooms/${encodeURIComponent(roomId)}?master=true`;
+      const response = await fetch(url, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ players })
+      });
+      if (!response.ok) throw new Error("Failed to save room");
     }
 
     function applyPermissionsToUI() {
       if (canEdit) {
-        permissionBanner.textContent = "Edit mode enabled (master=true).";
+        permissionBanner.textContent = `Room: ${roomId} — Edit mode enabled (master=true).`;
         createSection.style.display = "";
         resetBtn.style.display = "";
       } else {
-        permissionBanner.textContent = "View-only mode (add ?master=true to edit).";
+        permissionBanner.textContent = `Room: ${roomId} — View-only mode (add ?master=true to edit).`;
         createSection.style.display = "none";
         resetBtn.style.display = "none";
       }
@@ -228,7 +232,7 @@
           increaseBtn.textContent = "+";
           increaseBtn.addEventListener("click", () => {
             players[index].score += 1;
-            savePlayers();
+            saveToServer().catch(() => {});
             renderPlayers();
           });
 
@@ -237,7 +241,7 @@
           decreaseBtn.textContent = "-";
           decreaseBtn.addEventListener("click", () => {
             players[index].score -= 1;
-            savePlayers();
+            saveToServer().catch(() => {});
             renderPlayers();
           });
 
@@ -264,7 +268,7 @@
       }
 
       players.push({ name, score: initialScore });
-      savePlayers();
+      saveToServer().catch(() => {});
       playerNameInput.value = "";
       playerNameInput.focus();
       renderPlayers();
@@ -284,13 +288,33 @@
         players.forEach((player) => {
           player.score = DEFAULT_RESET_SCORE;
         });
-        savePlayers();
+        saveToServer().catch(() => {});
         renderPlayers();
       });
     }
 
     applyPermissionsToUI();
-    renderPlayers();
+
+    (async () => {
+      try {
+        await loadFromServer();
+      } catch {
+        // If the API isn't available (e.g. still on static hosting), just show empty.
+      } finally {
+        renderPlayers();
+      }
+
+      if (!canEdit) {
+        setInterval(async () => {
+          try {
+            await loadFromServer();
+            renderPlayers();
+          } catch {
+            // ignore polling errors
+          }
+        }, 2000);
+      }
+    })();
   </script>
 </body>
 </html>
