@@ -32,3 +32,21 @@ For real protection, set an environment variable on the server:
 
 Then only requests with header `X-ROOM-ADMIN: <some-secret>` can write.
 
+## One-click deploy on Render (shared room data)
+
+This repo includes `render.yaml` with a persistent disk, so room JSON files survive restarts.
+
+1. Open Render Blueprint new page: [https://dashboard.render.com/blueprints/new](https://dashboard.render.com/blueprints/new)
+2. Select repo: `fwangc/card-game-score`
+3. Keep defaults from `render.yaml` and deploy.
+4. (Recommended) Add environment variable:
+   - `ROOM_ADMIN_KEY=<a-secret-value>`
+
+After deploy, use your Render URL:
+- View-only: `https://<your-render-domain>/?roomId=myroom`
+- Edit: `https://<your-render-domain>/?roomId=myroom&master=true`
+
+Notes:
+- If `ROOM_ADMIN_KEY` is set, write requests require header `X-ROOM-ADMIN`.
+- Data is stored in JSON files under `/var/data/rooms` on the persistent disk.
+

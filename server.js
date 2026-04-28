@@ -4,7 +4,7 @@ const path = require("path");
 const fs = require("fs/promises");
 
 const PORT = Number(process.env.PORT || 3000);
-const DATA_DIR = path.join(__dirname, "data", "rooms");
+const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, "data", "rooms");
 
 function normalizeRoomId(roomId) {
   const id = String(roomId || "").trim();
@@ -63,6 +63,10 @@ app.use(express.json({ limit: "256kb" }));
 
 // Serve the frontend (index.html) from repo root
 app.use(express.static(__dirname));
+
+app.get("/healthz", (_req, res) => {
+  res.json({ ok: true });
+});
 
 app.get("/api/rooms/:roomId", async (req, res) => {
   try {
