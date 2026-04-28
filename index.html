@@ -144,6 +144,7 @@
 
   <script>
     const DEFAULT_RESET_SCORE = 2;
+    const STORAGE_KEY_PREFIX = "card-game-score.room.";
 
     function isMasterMode() {
       const params = new URLSearchParams(window.location.search);
@@ -161,6 +162,7 @@
     const canEdit = isMasterMode();
     const roomId = getRoomId();
     const players = [];
+    let serverAvailable = true;
 
     const permissionBanner = document.getElementById("permissionBanner");
     const createSection = document.getElementById("createSection");
@@ -170,6 +172,32 @@
     const playersList = document.getElementById("playersList");
     const emptyState = document.getElementById("emptyState");
     const resetBtn = document.getElementById("resetBtn");
+
+    function getStorageKey() {
+      return `${STORAGE_KEY_PREFIX}${roomId}`;
+    }
+
+    function loadFromLocal() {
+      try {
+        const raw = localStorage.getItem(getStorageKey());
+        if (!raw) return [];
+        const parsed = JSON.parse(raw);
+        if (!Array.isArray(parsed)) return [];
+        return parsed
+          .filter((p) => p && typeof p.name === "string" && typeof p.score === "number")
+          .map((p) => ({ name: p.name, score: p.score }));
+      } catch {
+        return [];
+      }
+    }
+
+    function saveToLocal() {
+      try {
+        localStorage.setItem(getStorageKey(), JSON.stringify(players));
+      } catch {
+        // ignore local storage errors
+      }
+    }
 
     async function loadFromServer() {
       const response = await fetch(`/api/rooms/${encodeURIComponent(roomId)}`);
@@ -187,6 +215,19 @@
         body: JSON.stringify({ players })
       });
       if (!response.ok) throw new Error("Failed to save room");
+    }
+
+    async function persistPlayers() {
+      if (!canEdit) return;
+      if (serverAvailable) {
+        try {
+          await saveToServer();
+          return;
+        } catch {
+          serverAvailable = false;
+        }
+      }
+      saveToLocal();
     }
 
     function applyPermissionsToUI() {
@@ -232,7 +273,7 @@
           increaseBtn.textContent = "+";
           increaseBtn.addEventListener("click", () => {
             players[index].score += 1;
-            saveToServer().catch(() => {});
+            persistPlayers();
             renderPlayers();
           });
 
@@ -241,7 +282,7 @@
           decreaseBtn.textContent = "-";
           decreaseBtn.addEventListener("click", () => {
             players[index].score -= 1;
-            saveToServer().catch(() => {});
+            persistPlayers();
             renderPlayers();
           });
 
@@ -268,7 +309,7 @@
       }
 
       players.push({ name, score: initialScore });
-      saveToServer().catch(() => {});
+      persistPlayers();
       playerNameInput.value = "";
       playerNameInput.focus();
       renderPlayers();
@@ -288,7 +329,7 @@
         players.forEach((player) => {
           player.score = DEFAULT_RESET_SCORE;
         });
-        saveToServer().catch(() => {});
+        persistPlayers();
         renderPlayers();
       });
     }
@@ -299,12 +340,16 @@
       try {
         await loadFromServer();
       } catch {
-        // If the API isn't available (e.g. still on static hosting), just show empty.
+        serverAvailable = false;
+        players.splice(0, players.length, ...loadFromLocal());
       } finally {
         renderPlayers();
+        if (!serverAvailable) {
+          permissionBanner.textContent += " Data is saved in this browser.";
+        }
       }
 
-      if (!canEdit) {
+      if (!canEdit && serverAvailable) {
         setInterval(async () => {
           try {
             await loadFromServer();
