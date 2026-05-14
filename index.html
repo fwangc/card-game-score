@@ -85,6 +85,13 @@
       color: #fff;
     }
 
+    .btn-remove {
+      min-width: 40px;
+      font-size: 16px;
+      background: #dc2626;
+      color: #fff;
+    }
+
     .players {
       display: grid;
       gap: 10px;
@@ -92,7 +99,7 @@
 
     .player-row {
       display: grid;
-      grid-template-columns: 1fr auto auto auto;
+      grid-template-columns: 1fr auto auto auto auto;
       gap: 8px;
       align-items: center;
       background: #f9fafb;
@@ -255,7 +262,7 @@
       players.forEach((player, index) => {
         const row = document.createElement("div");
         row.className = "player-row";
-        row.style.gridTemplateColumns = canEdit ? "1fr auto auto auto" : "1fr auto";
+        row.style.gridTemplateColumns = canEdit ? "1fr auto auto auto auto" : "1fr auto";
 
         const name = document.createElement("span");
         name.className = "name";
@@ -286,7 +293,18 @@
             renderPlayers();
           });
 
-          row.append(increaseBtn, decreaseBtn);
+          const removeBtn = document.createElement("button");
+          removeBtn.className = "btn-remove";
+          removeBtn.textContent = "x";
+          removeBtn.title = `Remove ${player.name}`;
+          removeBtn.setAttribute("aria-label", `Remove ${player.name}`);
+          removeBtn.addEventListener("click", () => {
+            players.splice(index, 1);
+            persistPlayers();
+            renderPlayers();
+          });
+
+          row.append(increaseBtn, decreaseBtn, removeBtn);
         }
 
         playersList.appendChild(row);
